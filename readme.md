@@ -18,19 +18,19 @@ Launches a webservice on port 8081 which requests the website https://teambrg.co
 {
     "monster": "name of the monster",
     "elementWeakness" : {
-        fire: "value(mudeffected)",
-        water: "value(mudeffected)",
-        thunder: "value(mudeffected)",
-        ice: "value(mudeffected)",
-        dragon: "value(mudeffected)",
-        poison: "value(mudeffected)",
-        sleep: "value(mudeffected)",
-        paralysis: "value(mudeffected)",
-        blast: "value(mudeffected)",
-        stun: "value(mudeffected)"
+        "fire": "value(mudeffected)",
+        "water": "value(mudeffected)",
+        "thunder": "value(mudeffected)",
+        "ice": "value(mudeffected)",
+        "dragon": "value(mudeffected)",
+        "poison": "value(mudeffected)",
+        "sleep": "value(mudeffected)",
+        "paralysis": "value(mudeffected)",
+        "blast": "value(mudeffected)",
+        "stun": "value(mudeffected)"
     },
-    weakPoints : [""],
-    breakableParts : [""],
-    severable : bool
+    "weakPoints" : [""],
+    "breakableParts" : [""],
+    "severable" : false
 }
 ```
