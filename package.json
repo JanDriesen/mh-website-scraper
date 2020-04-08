@@ -9,8 +9,9 @@
   "author": "Jan Driesen",
   "license": "ISC",
   "dependencies": {
+    "cheerio": "latest",
     "express": "latest",
-    "request": "latest",
-    "cheerio": "latest"
+    "mongodb": "^3.5.5",
+    "request": "latest"
   }
 }

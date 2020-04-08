@@ -12,15 +12,38 @@ var request = require('request')
 var cheerio = require('cheerio')
 var app = express()
 
-app.get('/scrape/:monster', function(req, res) {
-    // all the web scraping magic will happen here
-    if (req.params.monster === undefined) {
-        return res.send("Error")
+var MongoClient = require('mongodb').MongoClient
+const mongoDBName = "monsterdb"
+const mongoCollectionName = "monsters"
+var mongoURL = "mongodb://localhost:27017/"
+
+MongoClient.connect(mongoURL, function (err, db) {
+    if (err) throw err
+
+    var dbo = db.db(mongoDBName)
+    if (!dbo) {
+        MongoClient.connect(`${mongoURL}${mongoDBName}`, function (err, db) {
+            if (err) throw err
+
+            console.log("Database Created!")
+
+            dbo.createCollection(mongoCollectionName, function(err, res) {
+                if (err) throw err
+        
+                console.log("Collection created!")
+                db.close()
+            })
+        })
+    } else {
+        console.log("Got already a database")
+        db.close()
     }
-    console.log("SEARCHING FOR: " + req.params.monster)
-    // the URL we will scrape from - in our example teambrg
+})
+
+function scrapeFor(requestedMonster, res) {
+// the URL we will scrape from - in our example teambrg
     // https://teambrg.com/monster-hunter-world/mhw-monster-elemental-weakness-table/
-    url = 'https://teambrg.com/monster-hunter-world/mhw-monster-elemental-weakness-table/';
+    url = 'https://teambrg.com/monster-hunter-world/mhw-monster-elemental-weakness-table/'
 
     // the structure of our request call
     // the first parameter is the url
@@ -69,7 +92,7 @@ app.get('/scrape/:monster', function(req, res) {
                 })
 
                 // filter the fetched table of monsters
-                const monsterToFilter = req.params.monster
+                const monsterToFilter = requestedMonster
                 // console.log(monsterToFilter)
                 
                 var searchResults = []
@@ -117,6 +140,7 @@ app.get('/scrape/:monster', function(req, res) {
                     severable : false
                 }
 
+                // setup the result Model with the filteredSearch Results
                 for (const result in filteredSearchResults) {
                     if (filteredSearchResults.hasOwnProperty(result)) {
                         const element = filteredSearchResults[result];
@@ -145,11 +169,53 @@ app.get('/scrape/:monster', function(req, res) {
                     }
                 }
 
+                // set it in the db
+                MongoClient.connect(mongoURL, function(err, db) {
+                    if (err) throw err
+
+                    var dbo = db.db(mongoDBName)
+                    dbo.collection(mongoCollectionName).insertOne(resultModel, function(err, res) {
+                        if (err) throw err
+                        console.log("1 document inserted")
+                        db.close()
+                    })
+                })
+
+                // reponse it to the request
                 res.json({result:resultModel})
             })
         } else {
             console.log('filthy error appeared')
         }
+    })
+}
+
+app.get('/scrape/:monster', function(req, res) {
+    // all the web scraping magic will happen here
+    if (req.params.monster === undefined) {
+        return res.send("Error")
+    }
+    console.log("SEARCHING FOR: " + req.params.monster)
+
+    // check the database if it exist
+    MongoClient.connect(mongoURL, function(err, db) {
+        if (err) throw err
+
+        var dbo = db.db(mongoDBName)
+        var query = {monster:req.params.monster}
+
+        dbo.collection(mongoCollectionName).find(query).toArray(function (err, monsters) {
+            if (err) throw err
+
+            if (monsters.length <= 0) {
+                console.log("nothing found going to scrape")
+                // else scrape the website and insert the result
+                scrapeFor(req.params.monster, res)
+            } else {
+                console.log("Got one in the database")
+                res.json({result: monsters[0]})
+            }
+        })
     })
 })
 
