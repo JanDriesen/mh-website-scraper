@@ -34,3 +34,16 @@ Launches a webservice on port 8081 which requests the website https://teambrg.co
     "severable" : false
 }
 ```
+
+## To-Do's
+- Setup a local database to fetch the table once
+- Get Request shall access the local database instead of scraping every time
+- Create a post route to add monsters into the local database
+
+### Future (make a complete project out of it, if it were smth serious)
+- Dockerize
+- Tests
+- CI 
+- Deployment to Raspberry
+- Postman
+- Swagger
