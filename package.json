@@ -1,0 +1,16 @@
+{
+  "name": "mh-website-scraper",
+  "version": "1.0.0",
+  "description": "crawls the table from teambrg and builds a json from it",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "Jan Driesen",
+  "license": "ISC",
+  "dependencies": {
+    "express": "latest",
+    "request": "latest",
+    "cheerio": "latest"
+  }
+}
