@@ -14,7 +14,8 @@ var app = express()
 
 var MongoClient = require('mongodb').MongoClient
 const mongoDBName = "monsterdb"
-const mongoCollectionName = "monsters"
+const mongoMonsterCollectionName = "monsters"
+const mongoMonsterNamesCollectionName = "monsterNames"
 var mongoURL = "mongodb://localhost:27017/"
 
 MongoClient.connect(mongoURL, function (err, db) {
@@ -27,9 +28,9 @@ MongoClient.connect(mongoURL, function (err, db) {
 
             console.log("Database Created!")
 
-            dbo.createCollection(mongoCollectionName, function(err, res) {
+            db.createCollection(mongoMonsterCollectionName, function (err, res) {
                 if (err) throw err
-        
+
                 console.log("Collection created!")
                 db.close()
             })
@@ -40,90 +41,46 @@ MongoClient.connect(mongoURL, function (err, db) {
     }
 })
 
+// scrape the websites table with the monster weaknesses
 function scrapeFor(requestedMonster, res) {
-// the URL we will scrape from - in our example teambrg
+    // the URL we will scrape from - in our example teambrg
     // https://teambrg.com/monster-hunter-world/mhw-monster-elemental-weakness-table/
-    url = 'https://teambrg.com/monster-hunter-world/mhw-monster-elemental-weakness-table/'
+    const url = 'https://teambrg.com/monster-hunter-world/mhw-monster-elemental-weakness-table/'
 
     // the structure of our request call
     // the first parameter is the url
     // the callback function takes 3 paramters, an error, reponse status code, and the html
-    request(url, function(error, responsecode, html) {
+    request(url, function (error, responsecode, html) {
         // first we check to make sure no errors occured when making the request
         if (!error) {
             // next we'll utilize the cheerio library on the returned html which will essentially give us qQueury functionality
             var $ = cheerio.load(html);
 
-            // Finally we define the variable were going to capture
-            var properties = ["monster", "fire", "water", "thunder", "ice", "dragon", "poison", "sleep", "paralysis", "blast", "stun"]
+            // define the variables were going to capture
+            const tdPropertyOrder = ["monster", "fire", "water", "thunder", "ice", "dragon", "poison", "sleep", "paralysis", "blast", "stun"]
 
+            // create an array for the resulting monsters
             var monsters = []
 
-            // we'll use the uniqe header class row-hover as a starting point
-            $('.row-hover').filter(function() {
-                // lets store the data we filter into a variable so we can easily see whats going on
-                var data = $(this)
+            // keep a reference of all the names
+            // we just want a list of all monster names which we use later for some processing
+            var filteredMonsterNames = []
 
+            // we'll use the uniqe header class row-hover as a starting point for scraping.
+            // this will give us an table object
+            $('.row-hover').filter(function () {
+                // lets store the data we filtered into a variable so we can easily see whats going on
+                // this should be an table
+                var data = $(this)
                 // console.log(data)
+
+                // because data should be an table we can loop over its children table rows <tr> 
                 data.children().each(function (i, tableRow) {
-                    // for each row create a new monster dict object
+
+                    // for each row create a new monster dict object because one row defines one monster
+                    // console.log(tableRow)
                     var monster = {
                         monster: "",
-                        fire: "",
-                        water: "",
-                        thunder:"", 
-                        ice: "",
-                        dragon: "",
-                        poison: "",
-                        sleep: "",
-                        paralysis: "",
-                        blast: "",
-                        stun: ""
-                    }
-                    // console.log(tableRow)
-                    $(tableRow).children().each(function (i, td) {
-                        // console.log(properties[i]+ ": " + $(td).text())
-                        // each td in the row is a property 
-                        // set the i property of the monster to the td's text
-                        monster[properties[i]] = $(td).text()
-                        // add monster to monsters
-                        monsters.push(monster)
-                    })
-                })
-
-                // filter the fetched table of monsters
-                const monsterToFilter = requestedMonster
-                // console.log(monsterToFilter)
-                
-                var searchResults = []
-                // console.log(monsters)
-                monsters.forEach(child => {
-                    if (child.monster.toLowerCase() == monsterToFilter.toLowerCase()) {
-                        searchResults.push(child)        
-                    }
-                })
-
-                if (searchResults.length == 0) {
-                    return res.send("Error")
-                }
-
-                // console.log('there are ' + searchResults.length + 'Monsters filtererd')
-
-                // somehow the results are weird and they are always 11 copies of the monster
-                //7 eg its only 3 times contained in the real list but we got a result of 33 in our searchResults array
-                // maybe make some modulo to get the magic number 11
-                // currently its 11 because yeah its 11
-                var filteredSearchResults = []
-                for (var i = 0; i < searchResults.length; i += 11) {
-                    filteredSearchResults.push(searchResults[i])
-                }
-
-                // the results seem not to be more than 4
-                // if there are 4 than it must mean its tail is severable
-                // create one reponse json from all filtered Results now
-                var resultModel = {
-                    monster: filteredSearchResults[0].monster,
-                    elementWeakness : {
                         fire: "",
                         water: "",
                         thunder: "",
@@ -134,16 +91,85 @@ function scrapeFor(requestedMonster, res) {
                         paralysis: "",
                         blast: "",
                         stun: ""
-                    },
-                    weakPoints : [],
-                    breakableParts : [],
-                    severable : false
-                }
+                    }
 
-                // setup the result Model with the filteredSearch Results
-                for (const result in filteredSearchResults) {
-                    if (filteredSearchResults.hasOwnProperty(result)) {
-                        const element = filteredSearchResults[result];
+                    // one row contains many <td> which hold the actual text
+                    // the order should be the same as the order of tdPropertyOrder
+                    // means we can reference over tablerow.children[i] == tdPropertyOrder[i] the corresponing name for the td value
+                    $(tableRow).children().each(function (i, td) {
+                        // set the i property of the monster to the td's text
+                        // i 0 = monstername
+                        // i 1 = fire weakness and so on
+                        // console.log(properties[i]+ ": " + $(td).text())
+                        monster[tdPropertyOrder[i]] = $(td).text()
+                    })
+
+                    // add monster to monsters
+                    monsters.push(monster)
+
+                    // check if the monster names array already contains this monster name
+                    if (!filteredMonsterNames.includes(monster.monster)) {
+                        filteredMonsterNames.push(monster.monster)
+                    }
+                })
+
+                // console.log(monsters)
+                console.log(filteredMonsterNames)
+
+                // we want to save the filtered names extra
+                // so we get a monster name collection
+                // MongoClient.connect(mongoURL, function(err, db) {
+                //     if (err) throw err
+
+                //     var dbo = db.db(mongoDBName)
+                //     dbo.collection(mongoMonsterNamesCollectionName).insertMany(filteredMonsterNames, function(err, res) {
+                //         db.close()
+                //     })
+                // })
+
+                var resultModels = []
+                // filter the fetched table of monsters
+                filteredMonsterNames.forEach(monstername => {
+                    const monsterToFilter = monstername
+                    // console.log(monsterToFilter)
+
+                    // maybe they appear more often. thats because some rows are for breakable, severable and weakpoints
+                    var searchResults = []
+                    // console.log(monsters)
+                    monsters.forEach(child => {
+                        if (child.monster.toLowerCase() == monsterToFilter.toLowerCase()) {
+                            searchResults.push(child)
+                        }
+                    })
+
+                    if (searchResults.length == 0) {
+                        return res.send("Error")
+                    }
+
+                    // the results seem not to be more than 4
+                    // if there are 4 than it must mean its tail is severable
+                    // create one reponse json from all filtered Results now
+                    var resultModel = {
+                        monster: searchResults[0].monster,
+                        elementWeakness: {
+                            fire: "",
+                            water: "",
+                            thunder: "",
+                            ice: "",
+                            dragon: "",
+                            poison: "",
+                            sleep: "",
+                            paralysis: "",
+                            blast: "",
+                            stun: ""
+                        },
+                        weakPoints: [],
+                        breakableParts: [],
+                        severable: false
+                    }
+
+                    // setup the result Model with the filteredSearch Results
+                    searchResults.forEach(element => {
                         if (element.fire === 'Weak point') {
                             // setup the weakpoints array
                             // loop overall keys in the element
@@ -166,23 +192,34 @@ function scrapeFor(requestedMonster, res) {
                                 }
                             }
                         }
-                    }
-                }
-
-                // set it in the db
-                MongoClient.connect(mongoURL, function(err, db) {
-                    if (err) throw err
-
-                    var dbo = db.db(mongoDBName)
-                    dbo.collection(mongoCollectionName).insertOne(resultModel, function(err, res) {
-                        if (err) throw err
-                        console.log("1 document inserted")
-                        db.close()
                     })
-                })
+
+                    resultModels.push(resultModel)
+
+                    // set it in the db
+                    MongoClient.connect(mongoURL, function (err, db) {
+                        if (err) throw err
+
+                        var dbo = db.db(mongoDBName)
+                        dbo.collection(mongoMonsterCollectionName).insertOne(resultModel, function (err, res) {
+                            if (err) throw err
+                            
+                            // console.log("1 document inserted")
+                            db.close()
+                        })
+                    })
+                });
 
                 // reponse it to the request
-                res.json({result:resultModel})
+                resultModels.forEach(element => {
+                    if (element.monster.toLowerCase() === requestedMonster.toLowerCase()) {
+                        return res.json({
+                            result: element
+                        })
+                    }
+                });
+                
+                return res.json("Error")
             })
         } else {
             console.log('filthy error appeared')
@@ -190,7 +227,7 @@ function scrapeFor(requestedMonster, res) {
     })
 }
 
-app.get('/scrape/:monster', function(req, res) {
+app.get('/scrape/:monster', function (req, res) {
     // all the web scraping magic will happen here
     if (req.params.monster === undefined) {
         return res.send("Error")
@@ -198,13 +235,15 @@ app.get('/scrape/:monster', function(req, res) {
     console.log("SEARCHING FOR: " + req.params.monster)
 
     // check the database if it exist
-    MongoClient.connect(mongoURL, function(err, db) {
+    MongoClient.connect(mongoURL, function (err, db) {
         if (err) throw err
 
         var dbo = db.db(mongoDBName)
-        var query = {monster:req.params.monster}
+        var query = {
+            monster: req.params.monster
+        }
 
-        dbo.collection(mongoCollectionName).find(query).toArray(function (err, monsters) {
+        dbo.collection(mongoMonsterCollectionName).find(query).toArray(function (err, monsters) {
             if (err) throw err
 
             if (monsters.length <= 0) {
@@ -213,7 +252,9 @@ app.get('/scrape/:monster', function(req, res) {
                 scrapeFor(req.params.monster, res)
             } else {
                 console.log("Got one in the database")
-                res.json({result: monsters[0]})
+                res.json({
+                    result: monsters[0]
+                })
             }
         })
     })
